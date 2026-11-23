@@ -60,7 +60,7 @@ function dots(){$("#dots").innerHTML=QUESTIONS.map((_,i)=>`<i class="${i<S.i||S.
 
 function intro(){S.st="intro";dots();app.innerHTML=`<div class="card"><span class="pill">AI Interview Screening</span><h1>Round 3 · Bot Interview</h1>
 <p class="mu">${QUESTIONS.length} questions · each one is timed · answers are scored by AI on relevance, depth and clarity.</p>
-<ul class="rules"><li>Answer by <b>voice (🎙)</b> or typing. You can mix both.</li><li>The timer starts the moment a question appears. When it hits zero your answer is <b>locked and submitted automatically</b>.</li><li>You can submit early. No going back to earlier questions.</li><li>Switching tabs is tracked and shown in your report.</li></ul>
+<ul class="rules"><li>Answer by <b>voice (🎙)</b> or typing. You can mix both.</li><li>The timer starts the moment a question appears. When it hits zero your answer is <b>locked and submitted automatically</b>.</li><li>You can submit early. No going back to earlier questions.</li><li>Switching tabs is tracked for the organisers.</li></ul>
 <label class="sm mu">Your name / roll no.</label><input id="nm" placeholder="e.g. Dhyan · 1GA22CS001" maxlength="60" autocomplete="off">
 <label class="sm mu">Round 3 password</label><input id="r3p" type="password" placeholder="Round 3 password" maxlength="60" autocomplete="off">
 <div class="bar"><span class="sp"></span><button class="pri" id="go">Start interview →</button></div></div>`;
@@ -149,20 +149,8 @@ async function report(){S.st="eval";dots();app.innerHTML=`<div class="card" styl
  flags=S.res.filter(r=>r.s.flag).length,off=S.res.some(r=>r.s.src==="offline"),avgw=Math.round(S.res.reduce((a,r)=>a+r.m.wpm,0)/S.res.length),fill=S.res.reduce((a,r)=>a+r.m.fillers,0);
  fetch("/api/round3/submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tabSwitches:S.tabs,report:{candidate:S.name,total:tot,max,percent:pct,band,tab_switches:S.tabs,answers:S.res.map(r=>({question:r.q,answer:r.a,result:r.s,used:r.used,auto:r.auto}))}})}).catch(()=>{});
  const bar=(l,v,m)=>`<span>${l}</span><div class="t"><i style="width:${v/m*100}%"></i></div>`;
- app.innerHTML=`<div class="card"><div class="meta"><span>Interview report</span><span>${esc(S.name)}</span></div>
-<div class="score" style="margin-top:10px"><div class="big">${tot}<span class="mu" style="font-size:1.4rem">/${max}</span></div><div><span class="pill">${band}</span><div class="mu sm" style="margin-top:6px">${pct}% · avg pace ${avgw} wpm · ${fill} filler words · ${S.tabs} tab switch${S.tabs===1?"":"es"}${flags?` · ⚠ ${flags} flagged answer${flags>1?"s":""}`:""}</div>${off?`<div class="sm" style="color:var(--wn)">AI unavailable for some answers — offline scoring used.</div>`:""}</div></div>
-<div class="bar noprint"><button class="pri" id="csv">⬇ Download CSV</button><button id="json">⬇ JSON</button><button id="pr">🖨 Print / PDF</button><span class="sp"></span><button id="again">Restart</button></div></div>`+
- S.res.map((r,i)=>{const s=r.s,t=s.rel+s.dep+s.cla;return`<div class="qc card"><div class="top"><span>Q${i+1} · ${esc(r.cat)}</span><span>${t}/10</span></div><div class="mu sm">${esc(r.q)}</div>
-<div class="bars">${bar("Relevance",s.rel,4)}${bar("Depth",s.dep,3)}${bar("Clarity",s.cla,3)}</div>
-<div>${s.hit.map(h=>`<span class="tag h">✓ ${esc(h)}</span>`).join("")}${s.missed.map(h=>`<span class="tag m">✗ ${esc(h)}</span>`).join("")}</div>
-<p style="margin:.6em 0 0">${esc(s.fb)}${s.flag?" <b>⚠ Flagged for review.</b>":""}</p>
-<details><summary>Your answer · ${r.m.words} words · ${r.used}s of ${r.limit}s${r.auto?" · auto-submitted":""}</summary><blockquote>${esc(r.a||"(no answer)")}</blockquote></details></div>`}).join("");
- const rows=S.res.map((r,i)=>({q:i+1,category:r.cat,question:r.q,answer:r.a,relevance:r.s.rel,depth:r.s.dep,clarity:r.s.cla,total:r.s.rel+r.s.dep+r.s.cla,words:r.m.words,seconds_used:r.used,auto_submitted:r.auto,flagged:r.s.flag,feedback:r.s.fb,scored_by:r.s.src}));
- const meta={candidate:S.name,total:tot,max,percent:pct,band,tab_switches:S.tabs,date:new Date().toISOString()};
- const save=async(fn,data)=>{try{const d=await window.claude.use("downloads");if(!d)throw 0;await d.save({filename:fn,data})}catch(e){alert("Download isn’t available here — use Print / PDF instead.")}};
- const slug=S.name.replace(/[^\w-]+/g,"_");
- $("#csv").onclick=()=>save(`interview_${slug}.csv`,[Object.keys(rows[0]),...rows.map(o=>Object.values(o))].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n"));
- $("#json").onclick=()=>save(`interview_${slug}.json`,JSON.stringify({...meta,answers:rows},null,2));
- $("#pr").onclick=()=>window.print();$("#again").onclick=intro;scrollTo(0,0)}
+ app.innerHTML=`<div class="card" style="text-align:center"><div class="tick">✅</div><h1>Interview submitted</h1><p class="mu">Your responses have been recorded. Please wait for the organisers.</p><button class="pri" id="close">Close interview</button></div>`;
+ $("#close").onclick=()=>{window.location.href="/"};
+ scrollTo(0,0)}
 intro();
 </script></body></html>

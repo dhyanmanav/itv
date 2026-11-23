@@ -133,19 +133,26 @@ function runExam(d) {
 
 /* ---------- Admin dashboard ---------- */
 const A = { rows: [], q: '', st: '', set: '', sort: 'score', dir: -1, open: true, timer: null };
+const R3 = { rows: [] };
 const REASON = { 'tab-switch': 'Switched tab', 'window-blur': 'Left window', 'fullscreen-exit': 'Exited fullscreen', 'page-leave': 'Left page', reload: 'Reloaded', timeout: 'Time up', manual: '' };
 async function adminView() {
   const d = await api('admin/results'); A.rows = d.rows; A.open = d.open; A.total = d.total;
+  const r3 = await api('admin/round3-results'); R3.rows = r3.rows;
   if (!$('#tb')) {
     view(`<div class="card xl"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h1>Results dashboard</h1><p class="mut" style="margin:0">Live · scores calculated automatically from the answer key</p></div>
     <div class="tools" style="margin:0"><button id="op" class="btn sm"></button><button id="ex" class="btn sm ghost">⬇ CSV</button><button id="rf" class="btn sm ghost">Refresh</button><button id="lo" class="btn sm ghost">Sign out</button></div></div>
+    <div class="tools"><button id="tab1" class="btn sm">Round 1 Results</button><button id="tab3" class="btn sm ghost">Round 3 Results</button></div>
+    <div id="round1-panel">
     <div class="stats" id="stats"></div>
     <div class="tools"><input id="s" placeholder="Search name / USN / email"><select id="fs"><option value="">All status</option><option value="submitted">Submitted</option><option value="started">In progress</option><option value="registered">Not started</option></select><select id="fz"><option value="">Both sets</option><option value="1">Set 1</option><option value="2">Set 2</option></select></div>
-    <div class="tw"><table><thead><tr>${[['#', ''], ['Name', 'name'], ['USN', 'usn'], ['Email', 'email'], ['Set', 'set'], ['Status', 'status'], ['Score', 'score'], ['Answered', 'answered'], ['Time', 'secs'], ['Ended by', 'reason'], ['IP', 'ip'], ['', '']].map(([t, k]) => `<th data-k="${k}">${t}</th>`).join('')}</tr></thead><tbody id="tb"></tbody></table></div></div>`);
+    <div class="tw"><table><thead><tr>${[['#', ''], ['Name', 'name'], ['USN', 'usn'], ['Email', 'email'], ['Set', 'set'], ['Status', 'status'], ['Score', 'score'], ['Answered', 'answered'], ['Time', 'secs'], ['Ended by', 'reason'], ['IP', 'ip'], ['', '']].map(([t, k]) => `<th data-k="${k}">${t}</th>`).join('')}</tr></thead><tbody id="tb"></tbody></table></div></div>
+    <div id="round3-panel" style="display:none"></div></div>`);
     $('#s').oninput = e => { A.q = e.target.value.toLowerCase(); paint(); }; $('#fs').onchange = e => { A.st = e.target.value; paint(); }; $('#fz').onchange = e => { A.set = e.target.value; paint(); };
     document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { const k = th.dataset.k; if (!k) return; A.dir = A.sort === k ? -A.dir : -1; A.sort = k; paint(); });
     $('#rf').onclick = adminView; $('#ex').onclick = csv; $('#lo').onclick = async () => { clearInterval(A.timer); await api('logout', {}); boot(); };
     $('#op').onclick = async () => { await api('admin/open', { open: !A.open }); adminView(); };
+    $('#tab1').onclick = () => { $('#round1-panel').style.display = ''; $('#round3-panel').style.display = 'none'; $('#tab1').className = 'btn sm'; $('#tab3').className = 'btn sm ghost'; };
+    $('#tab3').onclick = () => { $('#round1-panel').style.display = 'none'; $('#round3-panel').style.display = ''; $('#tab1').className = 'btn sm ghost'; $('#tab3').className = 'btn sm'; paintRound3(); };
     A.timer = setInterval(() => $('#tb') ? adminView().catch(() => { }) : clearInterval(A.timer), 15000);
   }
   paint();
@@ -167,6 +174,16 @@ function csv() {
   const rows = [['Rank', 'Name', 'USN', 'Email', 'Set', 'Status', 'Score', 'Out of', 'Answered', 'Seconds', 'Ended by', 'IP']];
   view2().forEach((r, n) => rows.push([n + 1, r.name, r.usn, r.email, r.set, r.status, r.score, A.total, r.answered, r.secs, r.reason, r.ip]));
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.map(r => r.map(cell).join(',')).join('\n')], { type: 'text/csv' })); a.download = 'aptitude-results.csv'; a.click();
+}
+
+function paintRound3() {
+  const rows = R3.rows;
+  const submitted = rows.filter(r => r.status === 'submitted').length;
+  $('#round3-panel').innerHTML = `<div class="stats">
+    <div class="st"><b>${rows.length}</b><span>Registered</span></div>
+    <div class="st"><b>${submitted}</b><span>Submitted</span></div>
+    <div class="st"><b>${rows.filter(r => r.status === 'started').length}</b><span>In progress</span></div>
+  </div><div class="tw"><table><thead><tr><th>#</th><th>Name</th><th>USN</th><th>Email</th><th>Status</th><th>Tab switches</th><th>Submitted</th><th>Answers</th><th>IP</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${esc(r.usn)}</td><td>${esc(r.email)}</td><td><span class="pill p-${r.status === 'submitted' ? 'submitted' : r.status === 'started' ? 'started' : 'registered'}">${esc(r.status)}</span></td><td>${r.tabSwitches}</td><td>${r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '–'}</td><td>${Object.keys(r.answers).length}/8</td><td>${esc(r.ip)}</td></tr>`).join('') || '<tr><td colspan="9">No Round 3 submissions</td></tr>'}</tbody></table></div>`;
 }
 
 /* ---------- Boot ---------- */

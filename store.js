@@ -31,6 +31,7 @@ module.exports = {
   allAttempts: () => run(sb.from('attempts').select('*')),
   delAttempt: uid => run(sb.from('attempts').delete().eq('uid', uid)),
   round3AttemptOf: uid => one(sb.from('round3_attempts').select('*').eq('uid', uid)),
+  allRound3Attempts: () => run(sb.from('round3_attempts').select('*')),
   addRound3Attempt: a => run(sb.from('round3_attempts').insert(a)),
   updateRound3Answer: async (uid, question, answer, result) => {
     const current = await one(sb.from('round3_attempts').select('answers').eq('uid', uid));

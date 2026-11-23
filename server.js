@@ -211,6 +211,24 @@ app.post('/api/admin/open', needAdmin, async (req, res) => {
   await DB.setOpen(!!req.body.open); res.json({ ok: true });
 });
 app.post('/api/admin/reset', needAdmin, async (req, res) => { await DB.delAttempt(String(req.body.uid)); res.json({ ok: true }); });
+app.get('/api/admin/round3-results', needAdmin, async (req, res) => {
+  const [users, attempts] = await Promise.all([DB.allUsers(), DB.allRound3Attempts()]);
+  const byUid = new Map(attempts.map(a => [a.uid, a]));
+  res.json({
+    rows: users.map(u => {
+      const a = byUid.get(u.id);
+      return {
+        uid: u.id, name: u.name, usn: u.usn, email: u.email,
+        status: a ? a.status : 'not started',
+        submittedAt: a ? a.submitted_at : null,
+        tabSwitches: a ? a.tab_switches || 0 : 0,
+        answers: a ? a.answers || {} : {},
+        report: a ? a.report || null : null,
+        ip: a ? a.ip || '' : ''
+      };
+    })
+  });
+});
 
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: 'Server error' }); });
 
