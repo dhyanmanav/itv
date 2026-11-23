@@ -30,6 +30,18 @@ module.exports = {
   allUsers: () => run(sb.from('users').select('id,name,usn,email')),
   allAttempts: () => run(sb.from('attempts').select('*')),
   delAttempt: uid => run(sb.from('attempts').delete().eq('uid', uid)),
+  round3AttemptOf: uid => one(sb.from('round3_attempts').select('*').eq('uid', uid)),
+  addRound3Attempt: a => run(sb.from('round3_attempts').insert(a)),
+  updateRound3Answer: async (uid, question, answer, result) => {
+    const current = await one(sb.from('round3_attempts').select('answers').eq('uid', uid));
+    const answers = { ...(current?.answers || {}), [question]: { answer: String(answer || '').slice(0, 10000), result } };
+    return run(sb.from('round3_attempts').update({ answers }).eq('uid', uid).eq('status', 'started'));
+  },
+  finishRound3: (uid, patch) => run(sb.from('round3_attempts').update(patch).eq('uid', uid).eq('status', 'started')),
+  incrementRound3Tabs: async uid => {
+    const current = await one(sb.from('round3_attempts').select('tab_switches').eq('uid', uid));
+    return run(sb.from('round3_attempts').update({ tab_switches: (current?.tab_switches || 0) + 1 }).eq('uid', uid).eq('status', 'started'));
+  },
   getOpen: async () => { const r = await one(sb.from('settings').select('v').eq('key', 'open')); return r ? r.v : true; },
   setOpen: v => run(sb.from('settings').upsert({ key: 'open', v })),
 };

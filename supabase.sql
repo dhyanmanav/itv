@@ -35,3 +35,20 @@ returns void language sql as $$
 $$;
 revoke all on function save_answer(uuid, int, text, bigint) from public, anon, authenticated;
 grant execute on function save_answer(uuid, int, text, bigint) to service_role;
+
+-- Round 3: AI interview. Keep separate from the Round 1 aptitude attempt.
+create table if not exists round3_attempts (
+  id uuid primary key default gen_random_uuid(),
+  uid uuid not null unique references users(id) on delete cascade,
+  status text not null default 'started' check (status in ('started','submitted')),
+  started_at bigint not null,
+  deadline bigint not null,
+  submitted_at bigint,
+  answers jsonb not null default '{}'::jsonb,
+  report jsonb,
+  tab_switches int not null default 0,
+  ip text,
+  ua text
+);
+
+alter table round3_attempts enable row level security;

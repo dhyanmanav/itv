@@ -8,6 +8,7 @@ const { SETS, SECTIONS, sec } = require('./questions');
 const E = process.env, PORT = E.PORT || 3000, PROD = E.NODE_ENV === 'production';
 const SECRET = E.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const GATE = E.GATE_PASSWORD || 'round1', ADMIN_CODE = E.ADMIN_PASSCODE || 'dhyan';
+const ROUND3_GATE = E.ROUND3_PASSWORD || 'round3';
 const ADMIN_EMAIL = (E.ADMIN_EMAIL || 'admin@event.local').toLowerCase(), ADMIN_PW = E.ADMIN_PASSWORD || 'Admin@2Dec';
 const DURATION = (+E.EXAM_MINUTES || 45) * 60000, GRACE = 15000, N = 25;
 const REASONS = ['manual', 'timeout', 'tab-switch', 'window-blur', 'fullscreen-exit', 'page-leave', 'reload'];
@@ -140,6 +141,57 @@ app.post('/api/submit', needUser, async (req, res) => {
   const a = await DB.attemptOf(req.uid);
   if (a && a.status === 'started') await finalize(a, req.body.answers, req.body.reason);
   res.json({ ok: true }); // never reveals score
+});
+
+// ---------- Round 3: gated AI interview ----------
+app.post('/api/round3/gate', lim(100), (req, res) => {
+  if (!eq(req.body.password || '', ROUND3_GATE)) return res.status(401).json({ error: 'Wrong Round 3 password' });
+  res.cookie('round3_gate', sign({ r3: 1 }, '12h'), ck(12 * 3600e3));
+  res.json({ ok: true });
+});
+app.get('/api/round3/status', needUser, async (req, res) => {
+  if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
+  const a = await DB.round3AttemptOf(req.uid);
+  if (a) return res.json({ state: a.status === 'submitted' ? 'done' : 'started', attempt: a.status === 'submitted' ? { submitted_at: a.submitted_at } : null });
+  res.json({ state: 'ready', questions: 8 });
+});
+app.post('/api/round3/start', needUser, async (req, res) => {
+  if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
+  const existing = await DB.round3AttemptOf(req.uid);
+  if (existing) return res.json(existing.status === 'submitted' ? { done: true } : { started: true, deadline: existing.deadline });
+  const now = Date.now();
+  await DB.addRound3Attempt({
+    uid: req.uid, status: 'started', started_at: now, deadline: now + (8 * 120000),
+    answers: {}, ip: req.ip, ua: (req.get('user-agent') || '').slice(0, 200)
+  });
+  res.json({ started: true, deadline: now + (8 * 120000), question_seconds: 120 });
+});
+app.post('/api/round3/answer', needUser, async (req, res) => {
+  if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
+  const question = +req.body.question;
+  if (!Number.isInteger(question) || question < 1 || question > 8) return res.status(400).json({ error: 'Invalid question' });
+  await DB.updateRound3Answer(req.uid, question, req.body.answer, req.body.result || null);
+  res.json({ ok: true });
+});
+app.post('/api/round3/tab', needUser, async (req, res) => {
+  if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
+  await DB.incrementRound3Tabs(req.uid);
+  res.json({ ok: true });
+});
+app.post('/api/round3/submit', needUser, async (req, res) => {
+  if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
+  await DB.finishRound3(req.uid, {
+    status: 'submitted', submitted_at: Date.now(),
+    report: req.body.report || null,
+    tab_switches: Number.isInteger(req.body.tabSwitches) ? req.body.tabSwitches : 0
+  });
+  res.json({ ok: true });
+});
+
+app.get('/round3.html', (req, res) => {
+  res.set('Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+  res.sendFile(path.join(__dirname, 'Placement Arena · AI Interview Round.html'));
 });
 
 // ---------- Admin ----------

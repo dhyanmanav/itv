@@ -39,14 +39,14 @@ details{margin-top:8px}summary{cursor:pointer;color:var(--mu);font-size:.88rem}b
 <script>
 /* ===== 1. QUESTION BANK — edit freely (time in seconds, kp = ideal key points the AI checks against) ===== */
 const QUESTIONS=[
-{cat:"Introduction",time:60,q:"Tell me about yourself — your background, your strongest skills, and what you’re aiming for.",kp:["education and branch","key technical skills","a project or internship","career goal"]},
-{cat:"Project",time:90,q:"Pick one project you’re proud of. What problem did it solve, what was your role, and what tech did you use?",kp:["clear problem statement","own contribution","tech stack and why","outcome or impact"]},
-{cat:"Problem solving",time:75,q:"Describe a hard technical problem you got stuck on. How did you debug it and what did you learn?",kp:["specific problem","systematic debugging steps","resolution","lesson learned"]},
-{cat:"CS fundamentals",time:60,q:"Explain the difference between a process and a thread, and when you would use each.",kp:["process has separate memory space","threads share memory within a process","context switch cost","use case examples"]},
-{cat:"CS fundamentals",time:60,q:"What is the difference between SQL and NoSQL databases? How would you choose one for a new app?",kp:["structured schema vs flexible schema","ACID/joins vs horizontal scaling","example of each","decision based on data and access pattern"]},
-{cat:"Teamwork",time:60,q:"Tell me about a time you disagreed with a teammate. How was it resolved?",kp:["specific situation","listened and communicated","compromise or data-driven decision","result"]},
-{cat:"Situational",time:60,q:"You have two days left, the demo is failing, and one teammate is unresponsive. What do you do?",kp:["prioritise and scope down","reach out to teammate","redistribute work","communicate with mentor or stakeholders"]},
-{cat:"HR",time:45,q:"Why should we pick you over other candidates?",kp:["relevant skills","evidence or achievements","learning attitude","fit with the role or team"]}
+{cat:"Introduction",time:120,q:"Tell me about yourself — your background, your strongest skills, and what you’re aiming for.",kp:["education and branch","key technical skills","a project or internship","career goal"]},
+{cat:"Project",time:120,q:"Pick one project you’re proud of. What problem did it solve, what was your role, and what tech did you use?",kp:["clear problem statement","own contribution","tech stack and why","outcome or impact"]},
+{cat:"Problem solving",time:120,q:"Describe a hard technical problem you got stuck on. How did you debug it and what did you learn?",kp:["specific problem","systematic debugging steps","resolution","lesson learned"]},
+{cat:"CS fundamentals",time:120,q:"Explain the difference between a process and a thread, and when you would use each.",kp:["process has separate memory space","threads share memory within a process","context switch cost","use case examples"]},
+{cat:"CS fundamentals",time:120,q:"What is the difference between SQL and NoSQL databases? How would you choose one for a new app?",kp:["structured schema vs flexible schema","ACID/joins vs horizontal scaling","example of each","decision based on data and access pattern"]},
+{cat:"Teamwork",time:120,q:"Tell me about a time you disagreed with a teammate. How was it resolved?",kp:["specific situation","listened and communicated","compromise or data-driven decision","result"]},
+{cat:"Situational",time:120,q:"You have two days left, the demo is failing, and one teammate is unresponsive. What do you do?",kp:["prioritise and scope down","reach out to teammate","redistribute work","communicate with mentor or stakeholders"]},
+{cat:"HR",time:120,q:"Why should we pick you over other candidates?",kp:["relevant skills","evidence or achievements","learning attitude","fit with the role or team"]}
 ];
 const PASS_STRONG=75,PASS_OK=50;
 
@@ -54,7 +54,7 @@ const PASS_STRONG=75,PASS_OK=50;
 const $=s=>document.querySelector(s),app=$("#app");
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const S={st:"intro",i:0,res:[],name:"",ai:true,tabs:0,d:null,listening:false,base:"",mute:false,deadline:0,tick:null,q0:0};
-document.addEventListener("visibilitychange",()=>{if(document.hidden&&S.st==="ask")S.tabs++});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&S.st==="ask"){S.tabs++;fetch("/api/round3/tab",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}).catch(()=>{})}});
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Math.round(+n)||0));
 function dots(){$("#dots").innerHTML=QUESTIONS.map((_,i)=>`<i class="${i<S.i||S.st==="report"?"done":i===S.i&&S.st==="ask"?"on":""}"></i>`).join("")}
 
@@ -62,20 +62,40 @@ function intro(){S.st="intro";dots();app.innerHTML=`<div class="card"><span clas
 <p class="mu">${QUESTIONS.length} questions · each one is timed · answers are scored by AI on relevance, depth and clarity.</p>
 <ul class="rules"><li>Answer by <b>voice (🎙)</b> or typing. You can mix both.</li><li>The timer starts the moment a question appears. When it hits zero your answer is <b>locked and submitted automatically</b>.</li><li>You can submit early. No going back to earlier questions.</li><li>Switching tabs is tracked and shown in your report.</li></ul>
 <label class="sm mu">Your name / roll no.</label><input id="nm" placeholder="e.g. Dhyan · 1GA22CS001" maxlength="60" autocomplete="off">
+<label class="sm mu">Round 3 password</label><input id="r3p" type="password" placeholder="Round 3 password" maxlength="60" autocomplete="off">
 <div class="bar"><span class="sp"></span><button class="pri" id="go">Start interview →</button></div></div>`;
 $("#go").onclick=start;$("#nm").onkeydown=e=>{if(e.key==="Enter")start()}}
 
 async function start(){S.name=$("#nm").value.trim()||"Candidate";S.i=0;S.res=[];S.tabs=0;S.ai=true;
+ try{
+  const me=await fetch("/api/me",{cache:"no-store"}).then(r=>r.json());
+  if(!me.user){alert("Please sign in with your Round 1 account first.");location.href="/";return}
+  const gate=await fetch("/api/round3/gate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:$("#r3p").value})});
+  if(!gate.ok)throw new Error("Round 3 password required");
+  const s=await fetch("/api/round3/status",{cache:"no-store"});
+  if(s.status===401)throw new Error("Round 3 access denied");
+  const st=await s.json();if(st.state==="done"){alert("You have already submitted Round 3.");intro();return}
+  await fetch("/api/round3/start",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+ }catch(e){alert(e.message||"Unable to open Round 3");intro();return}
  try{window.speechSynthesis&&speechSynthesis.speak(new SpeechSynthesisUtterance(""))}catch(e){}
  initDictation();
  /* warm-up call so the AI-consent prompt appears now, not mid-interview */
  try{const sm=await window.claude.use("sample");if(!sm)throw 0;await sm("Reply with: OK",{modelTier:"quick"})}catch(e){S.ai=false}
  ask()}
 
-async function initDictation(){try{const d=await window.claude.use("dictation");if(!d)return;S.d=d;
- d.onPartial(({text})=>{const a=$("#ans");if(a&&S.st==="ask")a.value=S.base+text;cnt()});
- d.onFinal(({text})=>{const a=$("#ans");if(a&&S.st==="ask"){S.base+=text+" ";a.value=S.base;cnt()}});
- d.onState(({state})=>{S.listening=state==="listening";micUi()});micUi()}catch(e){}}
+async function initDictation(){try{
+ const API=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!API)return;
+ const d=new API();d.continuous=true;d.interimResults=true;d.lang="en-US";
+ d.onresult=e=>{const a=$("#ans");if(!a||S.st!=="ask")return;
+  let interim="",finalText="";
+  for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finalText+=e.results[i][0].transcript+" ";else interim+=e.results[i][0].transcript}
+  if(finalText){S.base+=(S.base&&!/\s$/.test(S.base)?" ":"")+finalText;a.value=S.base+interim}else a.value=S.base+interim;cnt()};
+ d.onstart=()=>{S.listening=true;micUi()};
+ d.onend=()=>{S.listening=false;micUi()};
+ d.onerror=()=>{S.listening=false;micUi()};
+ S.d={start:()=>d.start(),stop:()=>d.stop()};micUi();
+}catch(e){}}
 function micUi(){const m=$("#mic");if(!m)return;m.hidden=!S.d;m.textContent=S.listening?"⏹ Stop mic":"🎙 Speak";m.classList.toggle("rec",S.listening)}
 
 function ask(){const q=QUESTIONS[S.i];S.st="ask";S.base="";S.listening=false;dots();
@@ -98,7 +118,7 @@ function finish(auto){if(S.st!=="ask")return;S.st="lock";clearInterval(S.tick);t
  if(S.listening&&S.d)S.d.stop().catch(()=>{});
  const a=$("#ans"),text=a.value.trim(),q=QUESTIONS[S.i],used=Math.min(q.time,Math.round((Date.now()-S.q0)/1000));
  a.disabled=true;$("#sub").disabled=true;$("#mic").disabled=true;
- const r={q:q.q,cat:q.cat,a:text,used,limit:q.time,auto,m:metrics(text,used)};r.p=judge(q,r).then(v=>r.s=v);S.res.push(r);
+ const r={q:q.q,cat:q.cat,a:text,used,limit:q.time,auto,m:metrics(text,used)};r.p=judge(q,r).then(v=>{r.s=v;fetch("/api/round3/answer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:S.i+1,answer:text,result:v})}).catch(()=>{});return v});S.res.push(r);
  setTimeout(()=>{S.i++;S.i<QUESTIONS.length?ask():report()},auto?900:150)}
 
 /* ===== 3. AI EVALUATOR (LLM + deterministic fallback) ===== */
@@ -127,6 +147,7 @@ async function report(){S.st="eval";dots();app.innerHTML=`<div class="card" styl
  const tot=S.res.reduce((a,r)=>a+r.s.rel+r.s.dep+r.s.cla,0),max=S.res.length*10,pct=Math.round(tot/max*100),
  band=pct>=PASS_STRONG?"Strong · Shortlist":pct>=PASS_OK?"Average · Borderline":"Needs improvement",
  flags=S.res.filter(r=>r.s.flag).length,off=S.res.some(r=>r.s.src==="offline"),avgw=Math.round(S.res.reduce((a,r)=>a+r.m.wpm,0)/S.res.length),fill=S.res.reduce((a,r)=>a+r.m.fillers,0);
+ fetch("/api/round3/submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tabSwitches:S.tabs,report:{candidate:S.name,total:tot,max,percent:pct,band,tab_switches:S.tabs,answers:S.res.map(r=>({question:r.q,answer:r.a,result:r.s,used:r.used,auto:r.auto}))}})}).catch(()=>{});
  const bar=(l,v,m)=>`<span>${l}</span><div class="t"><i style="width:${v/m*100}%"></i></div>`;
  app.innerHTML=`<div class="card"><div class="meta"><span>Interview report</span><span>${esc(S.name)}</span></div>
 <div class="score" style="margin-top:10px"><div class="big">${tot}<span class="mu" style="font-size:1.4rem">/${max}</span></div><div><span class="pill">${band}</span><div class="mu sm" style="margin-top:6px">${pct}% · avg pace ${avgw} wpm · ${fill} filler words · ${S.tabs} tab switch${S.tabs===1?"":"es"}${flags?` · ⚠ ${flags} flagged answer${flags>1?"s":""}`:""}</div>${off?`<div class="sm" style="color:var(--wn)">AI unavailable for some answers — offline scoring used.</div>`:""}</div></div>
