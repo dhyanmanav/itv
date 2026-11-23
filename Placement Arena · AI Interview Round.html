@@ -54,7 +54,34 @@ const PASS_STRONG=75,PASS_OK=50;
 const $=s=>document.querySelector(s),app=$("#app");
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const S={st:"intro",i:0,res:[],name:"",ai:true,tabs:0,d:null,listening:false,base:"",mute:false,deadline:0,tick:null,q0:0};
-document.addEventListener("visibilitychange",()=>{if(document.hidden&&S.st==="ask"){S.tabs++;fetch("/api/round3/tab",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}).catch(()=>{})}});
+let round3Over=false,round3Armed=false,violationSubmitted=false;
+function round3Violation(reason){
+ if(round3Over||!round3Armed||S.st!=="ask")return;
+ round3Over=true; round3Armed=false; clearInterval(S.tick);
+ S.tabs++;
+ fetch("/api/round3/tab",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reason})}).catch(()=>{});
+ if(S.d&&S.listening)S.d.stop().catch(()=>{});
+ try{speechSynthesis.cancel()}catch(e){}
+ const a=$("#ans"),text=a?a.value.trim():"";
+ const q=QUESTIONS[S.i],used=Math.min(q.time,Math.round((Date.now()-S.q0)/1000));
+ if(a)a.disabled=true;
+ if(text)fetch("/api/round3/answer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:S.i+1,answer:text,result:{auto_submitted:true,reason}})}).catch(()=>{});
+ fetch("/api/round3/submit",{method:"POST",keepalive:true,headers:{"Content-Type":"application/json"},body:JSON.stringify({tabSwitches:S.tabs,report:{candidate:S.name,submitted_by_violation:true,reason,tab_switches:S.tabs,answers:{...S.res.map(r=>r)}}})}).catch(()=>{});
+ if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+ S.st="report";dots();
+ app.innerHTML=`<div class="card" style="text-align:center"><div class="tick">✅</div><h1>Interview auto-submitted</h1><p class="mu">The interview ended because you switched tabs or left the interview window.</p><button class="pri" id="close">Close interview</button></div>`;
+ $("#close").onclick=()=>{window.location.href="/"};
+}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)round3Violation("tab-switch")});
+window.addEventListener("blur",()=>round3Violation("window-blur"));
+window.addEventListener("pagehide",()=>round3Violation("page-leave"));
+window.addEventListener("beforeunload",e=>{if(!round3Over&&S.st==="ask"){e.preventDefault();e.returnValue="";round3Violation("page-leave")}});
+document.addEventListener("fullscreenchange",()=>{if(round3Armed&&!document.fullscreenElement)round3Violation("fullscreen-exit")});
+["contextmenu","copy","cut","paste","dragstart","selectstart"].forEach(eventName=>document.addEventListener(eventName,e=>e.preventDefault()));
+document.addEventListener("keydown",e=>{
+ const k=e.key.toLowerCase();
+ if(e.key==="F12"||e.key==="F5"||(e.ctrlKey||e.metaKey)&&["c","v","x","u","s","p","a","r"].includes(k)||(e.ctrlKey&&e.shiftKey&&["i","j","c"].includes(k)))e.preventDefault();
+});
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Math.round(+n)||0));
 function dots(){$("#dots").innerHTML=QUESTIONS.map((_,i)=>`<i class="${i<S.i||S.st==="report"?"done":i===S.i&&S.st==="ask"?"on":""}"></i>`).join("")}
 
@@ -79,6 +106,7 @@ async function start(){S.name=$("#nm").value.trim()||"Candidate";S.i=0;S.res=[];
   if(s.status===401)throw new Error("Round 3 access denied");
   const st=await s.json();if(st.state==="done"){alert("You have already submitted Round 3.");intro();return}
   await fetch("/api/round3/start",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+  try{await document.documentElement.requestFullscreen()}catch(e){}
  }catch(e){alert(e.message||"Unable to open Round 3");intro();return}
  try{window.speechSynthesis&&speechSynthesis.speak(new SpeechSynthesisUtterance(""))}catch(e){}
  initDictation();
@@ -109,7 +137,8 @@ function ask(){const q=QUESTIONS[S.i];S.st="ask";S.base="";S.listening=false;dot
  const a=$("#ans");a.oninput=()=>{S.base=a.value;cnt()};a.focus();
  $("#sub").onclick=()=>finish(false);$("#rp").onclick=()=>say(q.q);
  $("#mic").onclick=()=>{if(!S.d)return;if(S.listening){S.d.stop().catch(()=>{})}else{S.base=a.value&&!/\s$/.test(a.value)?a.value+" ":a.value;S.d.start().catch(()=>{})}};
- micUi();say(q.q);S.q0=Date.now();S.deadline=S.q0+q.time*1000;clearInterval(S.tick);S.tick=setInterval(tick,200);tick()}
+ micUi();say(q.q);S.q0=Date.now();S.deadline=S.q0+q.time*1000;clearInterval(S.tick);S.tick=setInterval(tick,200);tick();
+ round3Armed=false;setTimeout(()=>{round3Armed=true},1500)}
 
 function say(t){try{if(S.mute||!window.speechSynthesis)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1;speechSynthesis.speak(u)}catch(e){}}
 function cnt(){const a=$("#ans"),w=$("#wc");if(a&&w){const n=a.value.trim()?a.value.trim().split(/\s+/).length:0;w.textContent=n+" word"+(n===1?"":"s")}}
