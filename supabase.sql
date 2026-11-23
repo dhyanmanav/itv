@@ -52,3 +52,29 @@ create table if not exists round3_attempts (
 );
 
 alter table round3_attempts enable row level security;
+
+-- Standalone Round 3 registration: no Round 1 account/email mixing.
+create table if not exists round3_candidates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  usn text not null unique,
+  created_at bigint not null default (extract(epoch from now()) * 1000)::bigint
+);
+
+alter table round3_candidates enable row level security;
+
+create table if not exists round3_standalone_attempts (
+  id uuid primary key default gen_random_uuid(),
+  candidate_id uuid not null unique references round3_candidates(id) on delete cascade,
+  status text not null default 'started' check (status in ('started','submitted')),
+  started_at bigint not null,
+  deadline bigint not null,
+  submitted_at bigint,
+  answers jsonb not null default '{}'::jsonb,
+  report jsonb,
+  tab_switches int not null default 0,
+  ip text,
+  ua text
+);
+
+alter table round3_standalone_attempts enable row level security;

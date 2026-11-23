@@ -149,38 +149,63 @@ app.post('/api/round3/gate', lim(100), (req, res) => {
   res.cookie('round3_gate', sign({ r3: 1 }, '12h'), ck(12 * 3600e3));
   res.json({ ok: true });
 });
-app.get('/api/round3/status', needUser, async (req, res) => {
+const round3Candidate = req => ver(req.cookies.round3_candidate);
+app.post('/api/round3/register', lim(100), async (req, res) => {
   if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
-  const a = await DB.round3AttemptOf(req.uid);
+  const name = String(req.body.name || '').trim();
+  const usn = String(req.body.usn || '').trim().toUpperCase();
+  if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Enter your name' });
+  if (!/^[A-Z0-9]{3,20}$/.test(usn)) return res.status(400).json({ error: 'Enter a valid USN / roll number' });
+  let id;
+  try {
+    const existing = await DB.round3CandidateByUsn(usn);
+    if (existing) {
+      if (existing.name.toLowerCase() !== name.toLowerCase()) return res.status(409).json({ error: 'This USN is registered with another name' });
+      id = existing.id;
+    } else id = await DB.addRound3Candidate({ name, usn });
+  } catch (e) { if (e.code === '23505') return res.status(409).json({ error: 'This USN is already registered' }); throw e; }
+  res.cookie('round3_candidate', sign({ candidate_id: id }, '12h'), ck(12 * 3600e3));
+  res.json({ ok: true });
+});
+app.get('/api/round3/status', async (req, res) => {
+  if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
+  const candidate = round3Candidate(req);
+  if (!candidate) return res.status(401).json({ error: 'round3_candidate' });
+  const a = await DB.round3StandaloneAttemptOf(candidate.candidate_id);
   if (a) return res.json({ state: a.status === 'submitted' ? 'done' : 'started', attempt: a.status === 'submitted' ? { submitted_at: a.submitted_at } : null });
   res.json({ state: 'ready', questions: 8 });
 });
-app.post('/api/round3/start', needUser, async (req, res) => {
+app.post('/api/round3/start', async (req, res) => {
   if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
-  const existing = await DB.round3AttemptOf(req.uid);
+  const candidate = round3Candidate(req);
+  if (!candidate) return res.status(401).json({ error: 'round3_candidate' });
+  const existing = await DB.round3StandaloneAttemptOf(candidate.candidate_id);
   if (existing) return res.json(existing.status === 'submitted' ? { done: true } : { started: true, deadline: existing.deadline });
   const now = Date.now();
-  await DB.addRound3Attempt({
-    uid: req.uid, status: 'started', started_at: now, deadline: now + (8 * 120000),
+  await DB.addRound3StandaloneAttempt({
+    candidate_id: candidate.candidate_id, status: 'started', started_at: now, deadline: now + (8 * 120000),
     answers: {}, ip: req.ip, ua: (req.get('user-agent') || '').slice(0, 200)
   });
   res.json({ started: true, deadline: now + (8 * 120000), question_seconds: 120 });
 });
-app.post('/api/round3/answer', needUser, async (req, res) => {
+app.post('/api/round3/answer', async (req, res) => {
   if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
+  const candidate = round3Candidate(req); if (!candidate) return res.status(401).json({ error: 'round3_candidate' });
   const question = +req.body.question;
   if (!Number.isInteger(question) || question < 1 || question > 8) return res.status(400).json({ error: 'Invalid question' });
-  await DB.updateRound3Answer(req.uid, question, req.body.answer, req.body.result || null);
+  await DB.updateRound3StandaloneAnswer(candidate.candidate_id, question, req.body.answer, req.body.result || null);
   res.json({ ok: true });
 });
-app.post('/api/round3/tab', needUser, async (req, res) => {
+app.post('/api/round3/tab', async (req, res) => {
   if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
-  await DB.incrementRound3Tabs(req.uid);
+  const candidate = round3Candidate(req); if (!candidate) return res.status(401).json({ error: 'round3_candidate' });
+  await DB.incrementRound3StandaloneTabs(candidate.candidate_id);
   res.json({ ok: true });
 });
-app.post('/api/round3/submit', needUser, async (req, res) => {
+app.post('/api/round3/submit', async (req, res) => {
   if (!ver(req.cookies.round3_gate)) return res.status(401).json({ error: 'round3_gate' });
-  await DB.finishRound3(req.uid, {
+  const candidate = round3Candidate(req); if (!candidate) return res.status(401).json({ error: 'round3_candidate' });
+  await DB.finishRound3Standalone(candidate.candidate_id, {
     status: 'submitted', submitted_at: Date.now(),
     report: req.body.report || null,
     tab_switches: Number.isInteger(req.body.tabSwitches) ? req.body.tabSwitches : 0
@@ -212,13 +237,13 @@ app.post('/api/admin/open', needAdmin, async (req, res) => {
 });
 app.post('/api/admin/reset', needAdmin, async (req, res) => { await DB.delAttempt(String(req.body.uid)); res.json({ ok: true }); });
 app.get('/api/admin/round3-results', needAdmin, async (req, res) => {
-  const [users, attempts] = await Promise.all([DB.allUsers(), DB.allRound3Attempts()]);
-  const byUid = new Map(attempts.map(a => [a.uid, a]));
+  const [candidates, attempts] = await Promise.all([DB.allRound3Candidates(), DB.allRound3StandaloneAttempts()]);
+  const byCandidate = new Map(attempts.map(a => [a.candidate_id, a]));
   res.json({
-    rows: users.map(u => {
-      const a = byUid.get(u.id);
+    rows: candidates.map(c => {
+      const a = byCandidate.get(c.id);
       return {
-        uid: u.id, name: u.name, usn: u.usn, email: u.email,
+        uid: c.id, name: c.name, usn: c.usn,
         status: a ? a.status : 'not started',
         submittedAt: a ? a.submitted_at : null,
         tabSwitches: a ? a.tab_switches || 0 : 0,

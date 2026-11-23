@@ -183,7 +183,7 @@ function paintRound3() {
     <div class="st"><b>${rows.length}</b><span>Registered</span></div>
     <div class="st"><b>${submitted}</b><span>Submitted</span></div>
     <div class="st"><b>${rows.filter(r => r.status === 'started').length}</b><span>In progress</span></div>
-  </div><div class="tw"><table><thead><tr><th>#</th><th>Name</th><th>USN</th><th>Email</th><th>Status</th><th>Tab switches</th><th>Submitted</th><th>Answers</th><th>IP</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${esc(r.usn)}</td><td>${esc(r.email)}</td><td><span class="pill p-${r.status === 'submitted' ? 'submitted' : r.status === 'started' ? 'started' : 'registered'}">${esc(r.status)}</span></td><td>${r.tabSwitches}</td><td>${r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '–'}</td><td>${Object.keys(r.answers).length}/8</td><td>${esc(r.ip)}</td></tr>`).join('') || '<tr><td colspan="9">No Round 3 submissions</td></tr>'}</tbody></table></div>`;
+  </div><div class="tw"><table><thead><tr><th>#</th><th>Name</th><th>USN</th><th>Status</th><th>Tab switches</th><th>Submitted</th><th>Answered</th><th>IP</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${esc(r.usn)}</td><td><span class="pill p-${r.status === 'submitted' ? 'submitted' : r.status === 'started' ? 'started' : 'registered'}">${esc(r.status)}</span></td><td>${r.tabSwitches}</td><td>${r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '–'}</td><td>${Object.keys(r.answers).length}/8</td><td>${esc(r.ip)}</td></tr>`).join('') || '<tr><td colspan="8">No Round 3 submissions</td></tr>'}</tbody></table></div>`;
 }
 
 /* ---------- Boot ---------- */

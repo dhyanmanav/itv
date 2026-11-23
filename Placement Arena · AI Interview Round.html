@@ -62,16 +62,19 @@ function intro(){S.st="intro";dots();app.innerHTML=`<div class="card"><span clas
 <p class="mu">${QUESTIONS.length} questions · each one is timed · answers are scored by AI on relevance, depth and clarity.</p>
 <ul class="rules"><li>Answer by <b>voice (🎙)</b> or typing. You can mix both.</li><li>The timer starts the moment a question appears. When it hits zero your answer is <b>locked and submitted automatically</b>.</li><li>You can submit early. No going back to earlier questions.</li><li>Switching tabs is tracked for the organisers.</li></ul>
 <label class="sm mu">Your name / roll no.</label><input id="nm" placeholder="e.g. Dhyan · 1GA22CS001" maxlength="60" autocomplete="off">
+<label class="sm mu">USN / Roll number</label><input id="r3usn" placeholder="USN / Roll number" maxlength="20" autocomplete="off" autocapitalize="characters">
 <label class="sm mu">Round 3 password</label><input id="r3p" type="password" placeholder="Round 3 password" maxlength="60" autocomplete="off">
 <div class="bar"><span class="sp"></span><button class="pri" id="go">Start interview →</button></div></div>`;
 $("#go").onclick=start;$("#nm").onkeydown=e=>{if(e.key==="Enter")start()}}
 
 async function start(){S.name=$("#nm").value.trim()||"Candidate";S.i=0;S.res=[];S.tabs=0;S.ai=true;
  try{
-  const me=await fetch("/api/me",{cache:"no-store"}).then(r=>r.json());
-  if(!me.user){alert("Please sign in with your Round 1 account first.");location.href="/";return}
   const gate=await fetch("/api/round3/gate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:$("#r3p").value})});
   if(!gate.ok)throw new Error("Round 3 password required");
+  const usn=$("#r3usn").value.trim();
+  if(S.name.length<2||!usn){alert("Enter your name and USN / roll number.");return}
+  const registered=await fetch("/api/round3/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:S.name,usn})});
+  if(!registered.ok){const d=await registered.json();throw new Error(d.error||"Registration failed")}
   const s=await fetch("/api/round3/status",{cache:"no-store"});
   if(s.status===401)throw new Error("Round 3 access denied");
   const st=await s.json();if(st.state==="done"){alert("You have already submitted Round 3.");intro();return}

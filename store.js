@@ -32,6 +32,23 @@ module.exports = {
   delAttempt: uid => run(sb.from('attempts').delete().eq('uid', uid)),
   round3AttemptOf: uid => one(sb.from('round3_attempts').select('*').eq('uid', uid)),
   allRound3Attempts: () => run(sb.from('round3_attempts').select('*')),
+  round3CandidateByUsn: usn => one(sb.from('round3_candidates').select('*').eq('usn', usn)),
+  round3CandidateById: id => one(sb.from('round3_candidates').select('*').eq('id', id)),
+  addRound3Candidate: async c => (await run(sb.from('round3_candidates').insert(c).select('id').single())).id,
+  round3StandaloneAttemptOf: candidateId => one(sb.from('round3_standalone_attempts').select('*').eq('candidate_id', candidateId)),
+  addRound3StandaloneAttempt: a => run(sb.from('round3_standalone_attempts').insert(a)),
+  updateRound3StandaloneAnswer: async (candidateId, question, answer, result) => {
+    const current = await one(sb.from('round3_standalone_attempts').select('answers').eq('candidate_id', candidateId));
+    const answers = { ...(current?.answers || {}), [question]: { answer: String(answer || '').slice(0, 10000), result } };
+    return run(sb.from('round3_standalone_attempts').update({ answers }).eq('candidate_id', candidateId).eq('status', 'started'));
+  },
+  finishRound3Standalone: (candidateId, patch) => run(sb.from('round3_standalone_attempts').update(patch).eq('candidate_id', candidateId).eq('status', 'started')),
+  incrementRound3StandaloneTabs: async candidateId => {
+    const current = await one(sb.from('round3_standalone_attempts').select('tab_switches').eq('candidate_id', candidateId));
+    return run(sb.from('round3_standalone_attempts').update({ tab_switches: (current?.tab_switches || 0) + 1 }).eq('candidate_id', candidateId).eq('status', 'started'));
+  },
+  allRound3Candidates: () => run(sb.from('round3_candidates').select('id,name,usn,created_at')),
+  allRound3StandaloneAttempts: () => run(sb.from('round3_standalone_attempts').select('*')),
   addRound3Attempt: a => run(sb.from('round3_attempts').insert(a)),
   updateRound3Answer: async (uid, question, answer, result) => {
     const current = await one(sb.from('round3_attempts').select('answers').eq('uid', uid));
