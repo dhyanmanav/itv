@@ -242,6 +242,27 @@ app.get('/api/admin/round3-results', needAdmin, async (req, res) => {
   res.json({
     rows: candidates.map(c => {
       const a = byCandidate.get(c.id);
+      let score = null, percent = null, band = '';
+      const report = a ? a.report || null : null;
+      if (report && Number.isInteger(report.total)) {
+        score = report.total;
+        percent = report.percent;
+        band = report.band || '';
+      } else if (a && a.answers) {
+        let total = 0, scored = 0;
+        Object.values(a.answers).forEach(entry => {
+          const r = entry && entry.result;
+          if (r && Number.isFinite(r.rel) && Number.isFinite(r.dep) && Number.isFinite(r.cla)) {
+            total += r.rel + r.dep + r.cla;
+            scored++;
+          }
+        });
+        if (scored) {
+          percent = Math.round(total / (scored * 10) * 100);
+          score = Math.round((percent / 100) * 80);
+          band = percent >= 75 ? 'Strong · Shortlist' : percent >= 50 ? 'Average · Borderline' : 'Needs improvement';
+        }
+      }
       return {
         uid: c.id, name: c.name, usn: c.usn,
         status: a ? a.status : 'not started',
@@ -249,7 +270,8 @@ app.get('/api/admin/round3-results', needAdmin, async (req, res) => {
         tabSwitches: a ? a.tab_switches || 0 : 0,
         answers: a ? a.answers || {} : {},
         report: a ? a.report || null : null,
-        ip: a ? a.ip || '' : ''
+        ip: a ? a.ip || '' : '',
+        score, percent, band
       };
     })
   });
