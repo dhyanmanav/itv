@@ -79,6 +79,7 @@ async function userHome(user) {
 function doneView() {
   localStorage.setItem('xd', '1');
   view(`<div class="card"><div class="tick">✅</div><h1 style="text-align:center">Test submitted</h1><p class="mut" style="text-align:center">Your responses have been recorded.<br>Results will be announced by the organisers. You may close this window.</p>
+  <a class="btn" href="https://www.hackerrank.com/test-2026-1" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none">Continue to Round 2</a>
   <button id="lo" class="btn ghost">Sign out</button></div>`);
   $('#lo').onclick = async () => { await api('logout', {}); boot(); };
 }

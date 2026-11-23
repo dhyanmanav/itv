@@ -9,7 +9,7 @@ const E = process.env, PORT = E.PORT || 3000, PROD = E.NODE_ENV === 'production'
 const SECRET = E.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const GATE = E.GATE_PASSWORD || 'round1', ADMIN_CODE = E.ADMIN_PASSCODE || 'dhyan';
 const ADMIN_EMAIL = (E.ADMIN_EMAIL || 'admin@event.local').toLowerCase(), ADMIN_PW = E.ADMIN_PASSWORD || 'Admin@2Dec';
-const DURATION = (+E.EXAM_MINUTES || 30) * 60000, GRACE = 15000, N = 25;
+const DURATION = (+E.EXAM_MINUTES || 45) * 60000, GRACE = 15000, N = 25;
 const REASONS = ['manual', 'timeout', 'tab-switch', 'window-blur', 'fullscreen-exit', 'page-leave', 'reload'];
 const h = s => crypto.createHash('sha256').update(String(s)).digest();
 const eq = (a, b) => crypto.timingSafeEqual(h(a), h(b));
